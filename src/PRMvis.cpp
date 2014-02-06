@@ -133,7 +133,8 @@ bool ompl::geometric::PRMvis::check_guard_or_connector(base::State *workState){
         for (std::list<base::State*>::iterator it_g = it_Gi->begin();
              (it_g != it_Gi->end() && (!found)); it_g++){
             if (si_->checkMotion((*it_g), workState)){
-                OMPL_INFORM("%s: check_motion = true;", getName().c_str());
+                si_->printState(workState, std::cout);
+                std::cout << " visible by ";
                 si_->printState(*it_g, std::cout);
                 std::cout << std::endl;
                 found = true;
@@ -184,14 +185,16 @@ void ompl::geometric::PRMvis::growRoadmap(const base::PlannerTerminationConditio
                 std::cout << "Checking for a state: ";
                 si_->printState(workState, std::cout);
                 std::cout << std::endl;
-                if (found && (checkedStates.find(workState) != checkedStates.end()))
-                    checked = false;
+                if (found && (checkedStates.find(workState) == checkedStates.end()))
+                    //TODO: make good checker
+                {checked = false; checkedStates.insert(si_->cloneState(workState));}
                 else{checked = true;
                     std::cout << "Already checked\n";
+                    found = false;
                 }
                 //checker for guard and connection
                 if (!checked) found = check_guard_or_connector(workState);
-                else std::cout << "Not sufficiant of guard connection problem\n";
+                if (!found && !checked) std::cout << "Not sufficiant of guard connection problem\n";
                 attempts++;
             } while (attempts < magic::FIND_VALID_STATE_ATTEMPTS_WITHOUT_TERMINATION_CHECK && !found);
         }
@@ -205,6 +208,8 @@ void ompl::geometric::PRMvis::growRoadmap(const base::PlannerTerminationConditio
 ompl::geometric::PRMvis::Vertex ompl::geometric::PRMvis::addMilestone(base::State *state)
 {
     OMPL_INFORM("%s: addMilestone", getName().c_str());
+    si_->printState(state, std::cout);
+
     boost::mutex::scoped_lock _(graphMutex_);
 
     Vertex m = boost::add_vertex(g_);
@@ -323,11 +328,11 @@ ompl::base::PlannerStatus ompl::geometric::PRMvis::solve(const base::PlannerTerm
     // Reset addedSolution_ member and create solution checking thread
     addedSolution_ = false;
     base::PathPtr sol;
-    boost::thread slnThread(boost::bind(&PRM::checkForSolution, this, ptc, boost::ref(sol)));
+    boost::thread slnThread(boost::bind(&PRMvis::checkForSolution, this, ptc, boost::ref(sol)));
     OMPL_INFORM("%s: thread created\n", getName().c_str());
     // construct new planner termination condition that fires when the given ptc is true, or a solution is found
     base::PlannerTerminationCondition ptcOrSolutionFound =
-        base::plannerOrTerminationCondition(ptc, base::PlannerTerminationCondition(boost::bind(&PRM::addedNewSolution, this)));
+        base::plannerOrTerminationCondition(ptc, base::PlannerTerminationCondition(boost::bind(&PRMvis::addedNewSolution, this)));
 
     constructRoadmap(ptcOrSolutionFound);
 
@@ -350,6 +355,72 @@ ompl::base::PlannerStatus ompl::geometric::PRMvis::solve(const base::PlannerTerm
     return sol ? (addedNewSolution() ? base::PlannerStatus::EXACT_SOLUTION : base::PlannerStatus::APPROXIMATE_SOLUTION) : base::PlannerStatus::TIMEOUT;
 }
 
+void ompl::geometric::PRMvis::checkForSolution(const base::PlannerTerminationCondition &ptc,
+                                            base::PathPtr &solution)
+{
+    base::GoalSampleableRegion *goal = static_cast<base::GoalSampleableRegion*>(pdef_->getGoal().get());
+    while (!ptc && !addedSolution_)
+    {
+        // Check for any new goal states
+        if (goal->maxSampleCount() > goalM_.size())
+        {
+            const base::State *st = pis_.nextGoal();
+            if (st)
+                goalM_.push_back(addMilestone(si_->cloneState(st)));
+        }
+
+        // Check for a solution
+        addedSolution_ = haveSolution(startM_, goalM_, solution);
+        // Sleep for 1ms
+        if (!addedSolution_)
+            boost::this_thread::sleep(boost::posix_time::milliseconds(1));
+    }
+}
+
+bool ompl::geometric::PRMvis::haveSolution(const std::vector<Vertex> &starts, const std::vector<Vertex> &goals, base::PathPtr &solution)
+{
+    base::Goal *g = pdef_->getGoal().get();
+    base::Cost sol_cost(0.0);
+    bool sol_cost_set = false;
+    foreach (Vertex start, starts)
+    {
+        foreach (Vertex goal, goals)
+        {
+            // we lock because the connected components algorithm is incremental and may change disjointSets_
+            graphMutex_.lock();
+            bool same_component = sameComponent(start, goal);
+            graphMutex_.unlock();
+
+            if (same_component && g->isStartGoalPairValid(stateProperty_[goal], stateProperty_[start]))
+            {
+                base::PathPtr p = constructSolution(start, goal);
+                if (p)
+                {
+                    // Check if optimization objective is satisfied
+                    base::Cost pathCost = p->cost(opt_);
+                    if (opt_->isSatisfied(pathCost))
+                    {
+                        solution = p;
+                        return true;
+                    }
+                    else if (!sol_cost_set || opt_->isCostBetterThan(pathCost, sol_cost))
+                    {
+                        solution = p;
+                        sol_cost = pathCost;
+                        sol_cost_set = true;
+                    }
+                }
+            }
+        }
+    }
+
+    return false;
+}
+
+bool ompl::geometric::PRMvis::addedNewSolution(void) const
+{
+    return addedSolution_;
+}
 ///*single thread*/
 //ompl::base::PlannerStatus ompl::geometric::PRMvis::solve(const ompl::base::PlannerTerminationCondition& ptc)
 //{

@@ -96,10 +96,24 @@ namespace ompl
 
             /** \brief Returns the value of the addedSolution_ member. */
             bool addedNewSolution(void) const;
+            /**
+             * @brief if the State is already checked
+             * @param _state
+             * @return true if we have already checked the _state, otherwise false
+             */
+            bool isChecked(base::State* _state);\
+            /**
+             * @brief isEqualState
+             * @param A
+             * @param B
+             * @return true is A & B are equal in the current space information
+             */
+            bool isEqualState(const base::State* A, const base::State* B);
         private:
             std::list<std::list<base::State*> > guards;
-            std::set<base::State*> checkedStates;
+            std::list<base::State*> checkedStates;
             std::list<base::State*> connectors;
+
         };
     }
 }

@@ -103,7 +103,7 @@ void ompl::geometric::PRMvis::addGuard(base::State *workState){
     std::list<base::State*> newGuard;
     newGuard.push_back(workState);
     guards.push_back(newGuard);
-    checkedStates.insert(si_->cloneState(workState));
+//    checkedStates.insert(si_->cloneState(workState));
 }
 
 void ompl::geometric::PRMvis::mergeVisComponents(
@@ -145,7 +145,7 @@ bool ompl::geometric::PRMvis::check_guard_or_connector(base::State *workState){
                 else /*connection node*/{
                     OMPL_INFORM("%s: Add Connector", getName().c_str());
                     connectors.push_back(workState);
-                    checkedStates.insert(si_->cloneState(workState));
+//                    checkedStates.push_back(si_->cloneState(workState));
                     isConnector = true;
                     /*connection is made later*/
                     mergeVisComponents(G_vis, &(*it_Gi));
@@ -156,12 +156,27 @@ bool ompl::geometric::PRMvis::check_guard_or_connector(base::State *workState){
             }
         }
 //        OMPL_INFORM("%s: test20", getName().c_str());
-        if (!G_vis) /*guard_node*/{
-            addGuard(workState);
-            isGuard = true;
-        }
+    }
+    if (!G_vis) /*guard_node*/{
+        addGuard(workState);
+        isGuard = true;
     }
     return (isGuard || isConnector);
+}
+
+bool ompl::geometric::PRMvis::isEqualState(const base::State* A, const base::State* B){
+    std::cout << "Comparing states: \n";
+    si_->printState(A, std::cout);
+    si_->printState(B, std::cout);
+    std::cout << std::endl;
+    return si_->equalStates(A, B);
+}
+
+bool ompl::geometric::PRMvis::isChecked(base::State* _state){
+    foreach (base::State* i, checkedStates) {
+        if (isEqualState(_state, i)) return true;
+    }
+    return false;
 }
 
 /*поиск следующей валидной вершины*/
@@ -185,9 +200,11 @@ void ompl::geometric::PRMvis::growRoadmap(const base::PlannerTerminationConditio
                 std::cout << "Checking for a state: ";
                 si_->printState(workState, std::cout);
                 std::cout << std::endl;
-                if (found && (checkedStates.find(workState) == checkedStates.end()))
-                    //TODO: make good checker
-                {checked = false; checkedStates.insert(si_->cloneState(workState));}
+//                if (found && (checkedStates.find(workState) == checkedStates.end())){
+                if (found && (!isChecked(workState))){
+                    checked = false;
+                    checkedStates.push_back(si_->cloneState(workState));
+                }
                 else{checked = true;
                     std::cout << "Already checked\n";
                     found = false;
@@ -209,7 +226,6 @@ ompl::geometric::PRMvis::Vertex ompl::geometric::PRMvis::addMilestone(base::Stat
 {
     OMPL_INFORM("%s: addMilestone", getName().c_str());
     si_->printState(state, std::cout);
-
     boost::mutex::scoped_lock _(graphMutex_);
 
     Vertex m = boost::add_vertex(g_);
@@ -291,7 +307,8 @@ ompl::base::PlannerStatus ompl::geometric::PRMvis::solve(const base::PlannerTerm
     while (const base::State *st = pis_.nextStart()) {
         startM_.push_back(addMilestone(si_->cloneState(st)));
         addGuard(si_->cloneState(st));
-        si_->printState(st, std::cout);
+        checkedStates.push_back(si_->cloneState(st));
+//        si_->printState(st, std::cout);
     }
 
     if (startM_.size() == 0)
@@ -312,6 +329,7 @@ ompl::base::PlannerStatus ompl::geometric::PRMvis::solve(const base::PlannerTerm
         const base::State *st = goalM_.empty() ? pis_.nextGoal(ptc) : pis_.nextGoal();
         if (st){
             goalM_.push_back(addMilestone(si_->cloneState(st)));
+            checkedStates.push_back(si_->cloneState(st));
             addGuard(si_->cloneState(st));
         }
 

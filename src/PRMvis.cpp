@@ -95,13 +95,13 @@ void ompl::geometric::PRMvis::growRoadmap(const base::PlannerTerminationConditio
     si_->freeState(workState);
 }
 
-void ompl::geometric::PRMvis::addGuard(base::State *workState){
+void ompl::geometric::PRMvis::addGuard(const base::State *workState){
     OMPL_INFORM("%s: Add guard node", getName().c_str());
     si_->printState(workState, std::cout);
     std::cout << std::endl;
 
     std::list<base::State*> newGuard;
-    newGuard.push_back(workState);
+    newGuard.push_back(si_->cloneState(workState));
     guards.push_back(newGuard);
 //    checkedStates.insert(si_->cloneState(workState));
 }
@@ -116,7 +116,7 @@ void ompl::geometric::PRMvis::mergeVisComponents(
     it_Gi->clear();
 }
 
-bool ompl::geometric::PRMvis::check_guard_or_connector(base::State *workState){
+bool ompl::geometric::PRMvis::check_guard_or_connector(const base::State *workState){
     OMPL_INFORM("%s: check guards or connector for ", getName().c_str());
     si_->printState(workState, std::cout);
     std::cout << std::endl;
@@ -132,6 +132,8 @@ bool ompl::geometric::PRMvis::check_guard_or_connector(base::State *workState){
 
         for (std::list<base::State*>::iterator it_g = it_Gi->begin();
              (it_g != it_Gi->end() && (!found)); it_g++){
+            std::cout << "taken state: \n";
+                si_->printState(*it_g, std::cout);
             if (si_->checkMotion((*it_g), workState)){
                 si_->printState(workState, std::cout);
                 std::cout << " visible by ";
@@ -144,7 +146,7 @@ bool ompl::geometric::PRMvis::check_guard_or_connector(base::State *workState){
                 }
                 else /*connection node*/{
                     OMPL_INFORM("%s: Add Connector", getName().c_str());
-                    connectors.push_back(workState);
+                    connectors.push_back(si_->cloneState(workState));
 //                    checkedStates.push_back(si_->cloneState(workState));
                     isConnector = true;
                     /*connection is made later*/

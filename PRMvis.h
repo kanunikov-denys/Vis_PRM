@@ -83,10 +83,10 @@ namespace ompl
                                                    base::State *workState);
             virtual ompl::geometric::PRMvis::Vertex addMilestone(base::State *state);
 
-            virtual bool check_guard_or_connector(base::State* workState);
+            virtual bool check_guard_or_connector(const base::State *workState);
             void constructRoadmap(const base::PlannerTerminationCondition &ptc);
         protected:
-            void addGuard(base::State *workState);
+            void addGuard(const base::State *workState);
             void mergeVisComponents(std::list<base::State*>*, std::list<base::State*>*);
             /** Thread that checks for solution */
             void checkForSolution(const base::PlannerTerminationCondition &ptc, base::PathPtr &solution);

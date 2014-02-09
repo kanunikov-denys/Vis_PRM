@@ -192,16 +192,18 @@ void ompl::geometric::PRMvis::growRoadmap(const base::PlannerTerminationConditio
         // search for a valid state
         bool found = false;
         bool checked;
+        bool valid = false;
         while (!found && ptc == false)
         {
             unsigned int attempts = 0;
             do
             {
                 found = sampler_->sample(workState);
+                valid = si_->isValid(workState);
                 checked = false;
                 std::cout << "Checking for a state: ";
                 si_->printState(workState, std::cout);
-                std::cout << std::endl;
+                std::cout << "found " << found << " " << valid << std::endl;
 //                if (found && (checkedStates.find(workState) == checkedStates.end())){
                 if (found && (!isChecked(workState))){
                     checked = false;
@@ -304,7 +306,6 @@ ompl::base::PlannerStatus ompl::geometric::PRMvis::solve(const base::PlannerTerm
         OMPL_ERROR("%s: Unknown type of goal", getName().c_str());
         return base::PlannerStatus::UNRECOGNIZED_GOAL_TYPE;
     }
-
     // Add the valid start states as milestones
     while (const base::State *st = pis_.nextStart()) {
         startM_.push_back(addMilestone(si_->cloneState(st)));

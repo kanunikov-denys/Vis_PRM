@@ -85,6 +85,9 @@ namespace ompl
 
             virtual bool check_guard_or_connector(const base::State *workState);
             void constructRoadmap(const base::PlannerTerminationCondition &ptc);
+
+            virtual void clear(void);
+
         protected:
             void addGuard(const base::State *workState);
             void mergeVisComponents(std::list<base::State*>*, std::list<base::State*>*);
@@ -111,6 +114,8 @@ namespace ompl
             bool isEqualState(const base::State* A, const base::State* B);
         private:
             std::list<std::list<base::State*> > guards;
+            int guardsNumber;
+            int connectorsNumber;
             std::list<base::State*> checkedStates;
             std::list<base::State*> connectors;
 
